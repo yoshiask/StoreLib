@@ -2,6 +2,7 @@
 using StoreLib.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -53,6 +54,28 @@ namespace StoreLib.Services
             IList<PackageInstance> PackageInstances = await FE3Handler.GetPackageInstancesAsync(ProductListing.Product.DisplaySkuAvailabilities[0].Sku.Properties.FulfillmentData.WuCategoryId);
             IList<Uri> Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
             foreach(PackageInstance package in PackageInstances)
+            {
+                package.PackageUri = Files[PackageInstances.IndexOf(package)];
+            }
+            return PackageInstances;
+        }
+
+        public async Task<IList<PackageInstance>> GetMainPackagesForProductAsync()
+        {
+            string xml = await FE3Handler.SyncUpdatesAsync(ProductListing.Product.DisplaySkuAvailabilities[0].Sku.Properties.FulfillmentData.WuCategoryId);
+            IList<string> RevisionIDs;
+            IList<string> PackageNames;
+            IList<string> UpdateIDs;
+            FE3Handler.ProcessMainPackageUpdateIDs(xml, out RevisionIDs, out PackageNames, out UpdateIDs);
+
+            string packageFamilyName = ProductListing.Product.Properties.PackageFamilyName;
+            IList<PackageInstance> PackageInstances = await FE3Handler.GetPackageInstancesAsync(ProductListing.Product.DisplaySkuAvailabilities[0].Sku.Properties.FulfillmentData.WuCategoryId);
+            PackageInstances = PackageInstances.ToList().FindAll(p => {
+                return p.PackageType != PackageType.Unknown
+                    && (p.PackageFamily != null) && ($"{p.PackageFamily}_{p.PublisherId}" == packageFamilyName);
+            });
+            IList<Uri> Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
+            foreach (PackageInstance package in PackageInstances)
             {
                 package.PackageUri = Files[PackageInstances.IndexOf(package)];
             }

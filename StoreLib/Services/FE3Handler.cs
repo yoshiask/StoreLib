@@ -4,13 +4,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using System.Xml;
-
+using System.Xml.Linq;
 
 namespace StoreLib.Services
 {
@@ -162,10 +163,40 @@ namespace StoreLib.Services
             return result;
         }
 
+        /// <summary>
+        /// This function takes in the xml returned via SyncUpdatesAsync and parses out the Revision IDs, Package Names, and Update IDs. The resulting Update IDs and Revisions IDs are used for GetFileUrlsAsync.
+        /// </summary>
+        /// <param name="Xml"></param>
+        /// <param name="RevisionIDs"></param>
+        /// <param name="PackageNames"></param>
+        /// <param name="UpdateIDs"></param>
+        /// <remarks>Identical to <see cref="ProcessUpdateIDs"/>, but only processes packages where
+        /// <c>MainPackage="true"</c></remarks>
+        public static void ProcessMainPackageUpdateIDs(string Xml, out IList<string> RevisionIDs, out IList<string> PackageNames, out IList<string> UpdateIDs)
+        {
+            XDocument doc = XDocument.Parse(Xml);
+            UpdateIDs = new List<string>();
+            PackageNames = new List<string>();
+            RevisionIDs = new List<string>();
 
+            // First find all AppxPackageInstallData elements that have MainPackage="true"
+            IEnumerable<string> mainInstallIds = doc.Root.Descendants()
+                .Where(e => e.Name.LocalName == "AppxPackageInstallData" && e.Attribute("MainPackage").Value == "true")
+                .Select(n => n.Parent.Parent.Parent.Elements().First(e => e.Name.LocalName == "ID").Value);
 
-
-
+            IEnumerable<XElement> updateInfos = doc.Root.Descendants()
+                .Where(e => e.Name.LocalName == "UpdateInfo" && mainInstallIds.Contains(e.Elements().First(e => e.Name.LocalName == "ID").Value));
+            foreach (XElement updateInfo in updateInfos)
+            {
+                // These UpdateInfo elements are linked to a main AppxPackageInstallData element
+                XElement updateIdentity = updateInfo.Elements().First(e => e.Name.LocalName == "Xml")
+                    .Elements().First(e => e.Name.LocalName == "UpdateIdentity");
+                string updateID = updateIdentity.Attribute("UpdateID").Value;
+                string revisionID = updateIdentity.Attribute("RevisionNumber").Value;
+                UpdateIDs.Add(updateID);
+                RevisionIDs.Add(revisionID);
+            }
+        }
     }
 
 }
