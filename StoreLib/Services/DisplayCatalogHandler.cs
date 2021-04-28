@@ -52,10 +52,10 @@ namespace StoreLib.Services
             IList<string> UpdateIDs;
             FE3Handler.ProcessUpdateIDs(xml, out RevisionIDs, out PackageNames, out UpdateIDs);
             IList<PackageInstance> PackageInstances = await FE3Handler.GetPackageInstancesAsync(ProductListing.Product.DisplaySkuAvailabilities[0].Sku.Properties.FulfillmentData.WuCategoryId);
-            IList<Uri> Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
+            var Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
             foreach(PackageInstance package in PackageInstances)
             {
-                package.PackageUri = Files[PackageInstances.IndexOf(package)];
+                package.PackageUri = Files.Where(x => x.digest == package.Digest).FirstOrDefault().url;
             }
             return PackageInstances;
         }
@@ -74,10 +74,10 @@ namespace StoreLib.Services
                 return p.PackageType != PackageType.Unknown
                     && (p.PackageFamily != null) && ($"{p.PackageFamily}_{p.PublisherId}" == packageFamilyName);
             });
-            IList<Uri> Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
+            var Files = await FE3Handler.GetFileUrlsAsync(UpdateIDs, RevisionIDs);
             foreach (PackageInstance package in PackageInstances)
             {
-                package.PackageUri = Files[PackageInstances.IndexOf(package)];
+                package.PackageUri = Files.Where(x => x.digest == package.Digest).FirstOrDefault().url;
             }
             return PackageInstances;
         }

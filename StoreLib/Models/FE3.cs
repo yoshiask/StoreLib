@@ -7,12 +7,14 @@ namespace StoreLib.Models
         public string PackageMoniker;
         public Uri PackageUri;
         public PackageType PackageType;
+        public string Digest;
 
-        public PackageInstance(string PackageMoniker, Uri PackageUri, PackageType packageType)
+        public PackageInstance(string PackageMoniker, Uri PackageUri, PackageType packageType, string digest)
         {
             this.PackageMoniker = PackageMoniker;
             this.PackageUri = PackageUri;
             this.PackageType = packageType;
+            this.Digest = digest;
         }
 
         public string PackageFamily

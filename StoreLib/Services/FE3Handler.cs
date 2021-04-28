@@ -51,15 +51,19 @@ namespace StoreLib.Services
             XmlDocument doc = new XmlDocument();
             doc.LoadXml(content);
             XmlNodeList nodes = doc.GetElementsByTagName("AppxMetadata");
-            foreach(XmlNode node in nodes)
+            XmlNodeList updateNodes = doc.GetElementsByTagName("File");
+            foreach (XmlNode node in nodes)
             {
                 if(node.Attributes.Count >= 3)
                 {
-                    PackageInstance package = new PackageInstance(node.Attributes.GetNamedItem("PackageMoniker").Value, new Uri("http://test.com"), Utilities.TypeHelpers.StringToPackageType(node.Attributes.GetNamedItem("PackageType").Value));
+                    string digest = updateNodes.Cast<XmlNode>().Where(x =>
+                            x.Attributes.GetNamedItem("InstallerSpecificIdentifier") != null &&
+                            x.Attributes.GetNamedItem("InstallerSpecificIdentifier").Value ==
+                            node.Attributes.GetNamedItem("PackageMoniker").Value).FirstOrDefault().Attributes
+                        .GetNamedItem("Digest").Value;
+                    PackageInstance package = new PackageInstance(node.Attributes.GetNamedItem("PackageMoniker").Value, new Uri("http://test.com"), Utilities.TypeHelpers.StringToPackageType(node.Attributes.GetNamedItem("PackageType").Value), digest);
                     PackageInstances.Add(package);
                 }
-               
-
             }
             return PackageInstances;
 
@@ -106,16 +110,23 @@ namespace StoreLib.Services
                 RevisionIDs.Add(RevisionID);
             }
         }
+
+        public class UrlItem
+        {
+            public Uri url;
+            public string digest;
+        }
+
         /// <summary>
         /// Returns the Uris for the listing's packages. Each Uri will be for an appx or eappx. The blockmap is filtered out before returning the list.
         /// </summary>
         /// <param name="UpdateIDs"></param>
         /// <param name="RevisionIDs"></param>
         /// <returns>IList of App Package Download Uris</returns>
-        public static async Task<IList<Uri>> GetFileUrlsAsync(IList<string> UpdateIDs, IList<string> RevisionIDs)
+        public static async Task<IList<UrlItem>> GetFileUrlsAsync(IList<string> UpdateIDs, IList<string> RevisionIDs)
         {
             XmlDocument doc = new XmlDocument();
-            IList<Uri> uris = new List<Uri>();
+            IList<UrlItem> uris = new List<UrlItem>();
             foreach (string ID in UpdateIDs)
             {
                 HttpContent httpContent = new StringContent(String.Format(GetResourceTextFile("FE3FileUrl.xml"), ID, RevisionIDs[UpdateIDs.IndexOf(ID)]), Encoding.UTF8, "application/soap+xml");//Loading the request xml from a file to keep things nice and tidy.
@@ -128,15 +139,13 @@ namespace StoreLib.Services
                 XmlNodeList XmlUrls = doc.GetElementsByTagName("FileLocation");
                 foreach (XmlNode node in XmlUrls)
                 {
-                    foreach (XmlNode child in node.ChildNodes)
+                    if (node.ChildNodes.Cast<XmlNode>().Any(x => x.Name == "Url" && x.InnerText.Length != 99))
                     {
-                        if (child.Name == "Url")
+                        uris.Add(new UrlItem()
                         {
-                            if (child.InnerText.Length != 99)//We need to make sure we grab the package url and not the blockmap. The blockmap will always be 99 in length. A cheap hack but it works. 
-                            {
-                                uris.Add(new Uri(child.InnerText));
-                            }
-                        }
+                            url = new Uri(node.ChildNodes.Cast<XmlNode>().First(x => x.Name == "Url").InnerText),
+                            digest = node.ChildNodes.Cast<XmlNode>().First(x => x.Name == "FileDigest").InnerText
+                        });
                     }
                 }
             }
